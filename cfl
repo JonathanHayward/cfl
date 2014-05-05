@@ -1,0 +1,255 @@
+#!/usr/bin/python
+#
+# This software is (c) 2011 by Jonathan Hayward, jonathan.hayward@pobox.com,
+# JonathansCorner.com, and has a homepage at JonathansCorner.com/cfl
+# 
+# This is free software with NO warranty; not even for MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+# 
+# This software is made available to under your choice of the terms of the MIT
+# or GPLv2 license:
+#
+# MIT:  http://www.opensource.org/licenses/mit-license.php
+# GPLv2: http://www.opensource.org/licenses/gpl-2.0.php
+#
+
+import commands
+import os
+import pickle
+import random
+import subprocess
+import sys
+import time
+
+CHANCE_OF_BREAKING_ON_REPLACE = .3
+CHANCE_OF_BURNING_OUT = .01
+CHANCE_OF_FLICKERING = .1
+RECOMMENDED_TIME_ON = 15 * 60
+
+USAGE = '''Compact Fluorescent Light (CFL), version 1.0.
+An environmentally conscious distributed version control system.
+
+Copyright (C) 2011 Jonathan Hayward, jonathan.hayward@pobox.com,
+JonathansCorner.com.
+
+This is free software; see the source for copying conditions. There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+In this case, there is almost a warranty of unfitness for particular purposes,
+but let's forget about that.
+
+Basic commands:
+
+ add:
+      Add the specified files on the next commit.
+ annotate, blame:
+      Show changeset information by line for each file.
+ clone:
+      Make a copy of an existing repository.
+ commit, ci:
+      Commit the specified files or all outstanding changes.
+ diff:
+      Diff repository (or selected files).
+ export:
+      Dump the header and diffs for one or more changesets.
+ forget:
+      Forget the specified files on the next commit.
+ init:
+      Create a new repository in the given directory.
+ log, history:
+      Show revision history of entire repository or files.
+ merge:
+      Merge working directory with another revision.
+ off:
+      Turn CFL off. (Remember: those who see the CFL turn it off as much as
+      they can.)
+ on:
+      Turn CFL on. By default, CFL is off and needs to be turned on; it is
+      recommended procedure to keep CFL off most of the time and turn it on
+      when you need it.
+ pull:
+      Pull changes from the specified source.
+ push:
+      Push changes to the specified destination.
+ remove, rm:
+      Remove the specified files on the next commit.
+ replace:
+      Replace the CFL if it is burnt out.
+ serve:
+      Start stand-alone webserver.
+ status, st:
+      Show changed files in the working directory.
+ summary, sum:
+      Summarize working directory state.
+ update, up, checkout, co:
+      Update working directory (or switch revisions).
+
+global options:
+ -R --repository REPO    Repository root directory or name of overlay bundle file.
+    --cwd DIR            Change working directory.
+ -y --noninteractive     Do not prompt, assume 'yes' for any required answers.
+ -q --quiet              Suppress output.
+ -v --verbose            Enable additional output.
+    --config CONFIG [+]  Set/override config option (use 'section.name=value').
+    --debug              Enable debugging output.
+    --debugger           Start debugger.
+    --encoding ENCODE    Set the charset encoding (default: UTF-8).
+    --encodingmode MODE  Set the charset encoding mode (default: strict).
+    --traceback          Always print a traceback on exception.
+    --time               Time how long the command takes.
+    --profile            Print command execution profile.
+    --version            Output version information and exit.
+ -h --help               Display help and exit.
+
+[+] marked option can be specified multiple times.
+
+Use "cfl help" for the full list of commands.
+'''
+
+def quit(value = 0):
+    state['last_time_used'] = time.time()
+    try:
+        pickle.dump(state, open(os.path.join(os.getenv('HOME', '.'), '.cflrc'), 'w'))
+    except:
+        pass
+    print '''Thank you for using CFL!
+'''
+    exit(value)
+
+def usage():
+    print USAGE
+    quit(1)
+
+if __name__ == '__main__':
+    print ''
+    try:
+        state = pickle.load(open(os.path.join(os.getenv('HOME', '.'),
+          '.cflrc')))
+    except:
+        state = {
+          'burned_out': 0,
+          'last_time_used': 0,
+          'next_time_lit': 0,
+          'power': 0,
+          }
+    path = os.getenv('PATH', '').split(':')
+    hg = None
+    for directory in path:
+        candidate_path = os.path.join(directory, 'hg')
+        if os.path.exists(candidate_path):
+            hg = candidate_path
+            break
+    if not hg:
+        print '''CFL is powered by Mercurial, just as (real) Compact Fluorescent Lights
+wouldn't work without mercury. Please install Mercurial and try to run CFL again.
+'''
+        quit(1)
+    if not sys.argv[1:]:
+        usage()
+    command = sys.argv[1]
+    if command == 'replace':
+        if random.random() > CHANCE_OF_BREAKING_ON_REPLACE:
+            state['burned_out'] = 0
+            state['power'] = 0
+            print '''You have successfully replaced the CFL.
+'''
+            quit(0)
+        else:
+            print '''Oops...
+
+You appear to have dropped the old CFL and broken it.'''
+            time.sleep(1)
+            print '''
+And it's spilling Mercurial all over the place...'''
+            repository = None
+            directory = os.getcwd()
+            if os.path.exists(os.path.join(directory, '.hg')):
+                repository = os.path.join(directory, '.hg')
+            else:
+                parent = None
+                while parent != directory:
+                    if os.path.exists(os.path.join(directory, '.hg')):
+                        repository = os.path.join(directory, '.hg')
+                        break
+                parent = os.path.dirname(directory)
+            if repository:
+                time.sleep(2)
+                print commands.getoutput('find ' + repository +
+                  ' -type f | xargs cat -v')
+                print ''
+                quit(1)
+    if state['burned_out']:
+        print '''This CFL is burned out.
+
+Please type the following to replace the CFL:
+
+cfl replace
+'''
+        quit(1)
+    if random.random() < CHANCE_OF_BURNING_OUT:
+        '''Bzzt. This CFL has bruned out. To replace it, type:
+
+cfl replace.
+'''
+        state['burned_out'] = 1
+        quit(1)
+    if command == 'on':
+        if not state['power']:
+            state['power'] = 1
+            state['next_time_lit'] = time.time() + random.random() * 10 + \
+              random.random() * 10
+            print '''You have turned CFL on. Please remember to turn it off when you have finished
+using it.
+'''
+            quit(0)
+    if command == 'off':
+        state['power'] = 0
+        print '''Thank you for turning CFL off.
+'''
+        quit(0)
+    if command == 'help':
+        print '''May we suggest you upgrade to a less green DVCS?
+'''
+    if not state['power']:
+        print '''CFL can be turned off for efficiency purposes, and comes turned off by
+default.
+
+Right now CFL is turned off.
+
+To turn it on, type:
+
+cfl on
+'''
+        quit(0)
+    if state['power'] and state['next_time_lit'] > time.time():
+        print '''CFL needs some time too warm up after you have turned it on. Please try again
+in a few seconds.
+'''
+        quit(1)
+    if random.random() < CHANCE_OF_FLICKERING:
+        print '''CFL flickered briefly and could not execute your command. Pleease try again.
+'''
+        quit(1)
+    if command == 'commit' and not '-m' in sys.argv and not '--message' in sys.argv:
+        print '''To encourage efficient use of resources and a green footprint in terms of bytes
+taken by commits, CFL has disabled editor-based commit messages in favor of
+command-line inline commit messages, e.g.
+
+cfl commit -m 'Last commit before adding experimental feature.'
+
+Please try again using an inline commit message.
+'''
+        quit(1)
+    if state['last_time_used'] + RECOMMENDED_TIME_ON < time.time():
+        print '''A word to the wise: it has been more than 15 minutes since you last used CFL.
+
+Those who see the light turn it off if they're leaving for more than 15 minutes.
+
+You can turn off CFL by typing:
+
+cfl off
+'''
+    arguments = [hg]
+    arguments += sys.argv[1:]
+    subprocess.call(arguments)
+    print ''
+    quit(0)
